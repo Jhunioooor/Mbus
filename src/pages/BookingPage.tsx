@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { User, CreditCard, CheckCircle, AlertCircle, UserCheck, Baby, FileText, Phone, Heart, Search } from 'lucide-react';
 import { Viaje, SearchFilters, Cliente } from '../types';
 import { reniecService, ReniecData } from '../services/reniecService';
+import { ReniecConsultButton } from '../components/ReniecConsultButton';
 import { notificationService } from '../services/notificationService';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -31,7 +32,6 @@ export function BookingPage() {
   const [passengerData, setPassengerData] = useState<PassengerData[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [loading, setLoading] = useState(false);
-  const [reniecLoading, setReniecLoading] = useState<{ [key: number]: boolean }>({});
 
   if (!viaje || !filters) {
     navigate('/search');
@@ -87,34 +87,19 @@ export function BookingPage() {
     }
   };
 
-  const handleReniecConsult = async (index: number, dni: string) => {
-    if (dni.length !== 8) return;
-
-    setReniecLoading(prev => ({ ...prev, [index]: true }));
-    
-    try {
-      const data = await reniecService.consultarDNI(dni);
-      if (data) {
-        const edad = reniecService.calcularEdad(data.fechaNacimiento);
-        const newData = [...passengerData];
-        newData[index] = {
-          ...newData[index],
-          nombre: data.nombres,
-          apellidos: `${data.apellidoPaterno} ${data.apellidoMaterno}`,
-          dni: data.dni,
-          edad: edad,
-          genero: data.sexo,
-          esmenor: edad < 18
-        };
-        setPassengerData(newData);
-      } else {
-        alert('No se encontraron datos para este DNI');
-      }
-    } catch (error) {
-      alert('Error al consultar RENIEC');
-    } finally {
-      setReniecLoading(prev => ({ ...prev, [index]: false }));
-    }
+  const handleReniecDataReceived = (index: number, data: ReniecData) => {
+    const edad = reniecService.calcularEdad(data.fechaNacimiento);
+    const newData = [...passengerData];
+    newData[index] = {
+      ...newData[index],
+      nombre: reniecService.formatearNombre(data.nombres),
+      apellidos: `${reniecService.formatearNombre(data.apellidoPaterno)} ${reniecService.formatearNombre(data.apellidoMaterno)}`,
+      dni: data.dni,
+      edad: edad,
+      genero: data.sexo,
+      esmenor: edad < 18
+    };
+    setPassengerData(newData);
   };
 
   const handlePassengerDataChange = (index: number, field: keyof PassengerData, value: string | number | boolean) => {
@@ -355,19 +340,11 @@ export function BookingPage() {
                               placeholder="12345678"
                               required
                             />
-                            <button
-                              type="button"
-                              onClick={() => handleReniecConsult(index, passengerData[index]?.dni || '')}
-                              disabled={!passengerData[index]?.dni || passengerData[index]?.dni?.length !== 8 || reniecLoading[index]}
-                              className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
-                            >
-                              {reniecLoading[index] ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              ) : (
-                                <Search className="h-4 w-4" />
-                              )}
-                              <span>RENIEC</span>
-                            </button>
+                            <ReniecConsultButton
+                              dni={passengerData[index]?.dni || ''}
+                              onDataReceived={(data) => handleReniecDataReceived(index, data)}
+                              disabled={!passengerData[index]?.dni || passengerData[index]?.dni?.length !== 8}
+                            />
                           </div>
                         </div>
                         
